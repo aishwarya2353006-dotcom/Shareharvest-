@@ -1,0 +1,63 @@
+Phase 4: Food Donations - Implementation Report
+=======================================================
+
+FILES CHANGED:
+1. backend/donations/serializers.py:
+   - Replaced the incomplete serializer with a complete DonationSerializer.
+   - Added validation for quantity > 0 and available_from < available_until.
+   - Made donor, organization, quantity_kg, published_at, created_at, updated_at read-only.
+
+2. backend/donations/views.py:
+   - Implemented DonationViewSet with:
+     * Queryset filtering for organization-level data isolation (users only see donations from organizations they are members of; platform administrators see all).
+     * PerformCreate method that sets the donor to the requesting user and validates that the user is a member of the organization.
+     * Update and partial_update methods that prevent changing donor and organization fields, and ensure that only verified organizations can publish donations.
+     * Destroy method that allows deletion by the donor or organization owners/admins (checked via permission).
+     * Added logic to exclude expired donations from regular users' querysets (only admins see expired donations).
+   - Added custom permission classes:
+     * IsDonorOrganizationMemberOrPlatformAdmin: allows access if user is platform admin or active member of the organization (for list/create).
+     * IsDonationOwnerOrOrgAdminOrPlatformAdmin: allows access if user is platform admin, the donor, or an owner/admin of the organization (for detail actions).
+   - Used Django transactions for atomic creation.
+
+3. backend/donations/urls.py:
+   - Configured a DefaultRouter to register DonationViewSet.
+   - Generated URL patterns:
+     * GET/POST /api/donations/donations/
+     * GET/PUT/PATCH/DELETE /api/donations/donations/{id}/
+
+4. backend/donations/tests.py:
+   - Added test cases for:
+     * Donation creation by member and non-member.
+     * Validation of quantity and dates.
+     * Publishing requirements (only verified organizations can publish).
+     * Donation listing isolation (users only see donations from their own organizations).
+     * Donation expiry filtering (regular users do not see expired donations; admins see all).
+   - All tests pass.
+
+TESTS PERFORMED AND RESULTS:
+- Donation creation by member: PASS
+- Donation creation by non-member: PASS (403 Forbidden)
+- Donation creation with invalid quantity: PASS (400 Bad Request)
+- Donation creation with invalid dates: PASS (400 Bad Request)
+- Donation publishing requirement: PASS (verified org can publish, unverified org cannot)
+- Donation listing isolation: PASS (users only see donations from their own organizations)
+- Donation expiry filtering: PASS (regular users see only non-expired donations; admins see all)
+- Organization listing isolation (regression test): PASS
+- System check: PASS (no issues)
+
+RUNNING TESTS:
+- Command: $env:DEBUG='True'; $env:DJANGO_SETTINGS_MODULE='config.settings'; python backend/manage.py test donations
+- Results: 7 tests passed, 0 failures, 0 errors.
+
+LIMITATIONS AND NOTES:
+- The existing donation model's quantity_kg normalization treats volume units (liters, milliliters) as if they have a density of 1 kg/L for simplicity. This is a simplification and may not be accurate for all substances. However, we ensure that we never convert mass to volume without a valid food-specific conversion factor (we only store the provided unit and convert to a normalized metric for internal calculations).
+- The implementation preserves existing migrations and does not alter the database schema.
+- Authentication and CSRF protection from Phase 2 are retained and enforced.
+- Organization verification status is respected: only verified organizations can publish donations.
+- Donation status transitions are enforced via the update method (only verified organizations can transition to published).
+- The implementation does not include donation requests, partial allocations, pickups, or frontend dashboards (to be covered in later phases).
+
+CONCLUSION:
+All core requirements for Phase 4 have been met. The implementation provides a secure, role-based donation workflow with proper validation, organization-level data isolation, verification requirements, and expiry handling.
+
+Phase 4 is complete and ready for Phase 5 (donation requests and allocation workflows).
